@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+    <meta charset="utf-8" />
+    <title>Sierpenski Triangle</title>
+    <style type='text/css'>
+    	body{
+			margin: 0 auto;
+			color: #333;
+			background-color: #f9eedd;
+			font-size: 14px;
+			font-family: Arial, sans-serif;
+			line-height: 1.5em;
+			width: 1000px;
+		}
+		h3{
+			border-bottom: 1px solid #262696;
+			color: #262696;			
+		}
+		a{
+			color: #bd0707;
+		}
+		.left-side{
+			float: left;			
+			margin: 0 20px 0 0;
+			width: 600px;
+		}
+		.right-side{
+			border-left: 1px solid #CCC;
+			padding-left: 20px;
+			float: left;
+			width: 340px;
+		}
+		.optionsMenu{
+			margin-bottom: 20px;
+		}
+		.optionsMenu ul{
+			padding-left:0px;
+			margin:5px;
+		}
+		.optionsMenu ul li{
+			height: 35px;			
+			margin-right: 15px;
+			display: inline-block;
+			width: 140px;
+		}
+		.optionsMenu ul li input{
+			height: 35px;
+		}
+
+    </style>   
+</head>
+<body>
+	<h2>🔺 Sierpenski <span style="color:#bd0707">Triangle</span></h2>
+	<div class="left-side"> 
+		<canvas id="sierpinskiCanvas" width="600" height="470" style="border:1px solid #d3d3d3;">
+		Your browser does not support the HTML5 canvas tag.</canvas>
+
+		<div class="optionsMenu">
+			<ul>
+				<li><input type="button" value="&#9654; Start Animation" id="startAnimation" onclick="startAnimation()"></li>
+				<li><input type="button" value="&#9632; Stop Animation" id="stopAnimation" onclick="stopAnimation()"></li>
+				<li><b>Fill color : </b>
+					<input type="color" id="myColor" value="#ffff00" oninput="changeColor()">
+				</li>
+			</ul>
+			
+			<p>	<b>Recursion rank = <span id="rangeText"></span></b>
+				<input type="range" min="1" max="7" value="4" id="myRange" oninput="updateConfiguration()">
+			</p>
+		</div>
+	</div>
+
+	<div class="right-side">
+		<h3>About this version</h3>
+		<ul>
+			<li><b>Author :</b> <a href="https://oussamabenkhiroun.com/" title="Oussama Ben Khiroun" target="_blank"><b>Oussama Ben Khiroun</b></a></li>
+			<li><b>Language :</b> JavaScript animation using HTML5 canvas (credits to <a href="https://www.hameister.org/HTML5_Sierpinski.html" title="Jörn Hameister" target="_blank">Jörn Hameister</a>)</li>
+			<li><b>Algorithm :</b> Use of recursive triangles tracing
+			<li><b>Design :</b> HTML5 canvas</li>
+			<li><b>Source Code :</b> <a href="https://github.com/oussbenk/sierpenski-triangle" title="GitHub Repo" target="_blank">GitHub</a></li>
+			<li><b>License :</b> This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/" target="_blank">Creative Commons Attribution-NonCommercial 4.0 International License</a>		
+			&nbsp;<a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/" target="_blank"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/80x15.png" /></a></li>
+			</ul>
+		<h3>About Sierpenski Triangle</h3>
+		<p>The <a href="https://en.wikipedia.org/wiki/Sierpinski_triangle" title="Sierpenski on Wikipedia" target="_blank">Sierpinski triangle</a>  is a fractal and attractive fixed set with the overall shape of an equilateral triangle, subdivided recursively into smaller equilateral triangles. Originally constructed as a curve, this is one of the basic examples of self-similar sets, i.e., it is a mathematically generated pattern that is reproducible at any magnification or reduction <a href="https://en.wikipedia.org/wiki/Sierpinski_triangle" title="Sierpenski Triangle on Wikipedia" target="_blank">[Wikipedia]</a>.
+		</p>
+	</div>
+	
+	<script type="text/javascript" src="js/sierpinski.js"></script>
+	<script type="text/javascript" src="js/main.js"></script>
+
+</body>
+</html>
