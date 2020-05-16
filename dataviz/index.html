@@ -1,0 +1,296 @@
+<!-- Author : Oussama Ben Khiroun
+	Website : https://www.oussamabenkhiroun.com -->
+<!DOCTYPE html>
+<head>
+<meta charset="utf-8">
+<title>DataViz - Export by world regions</title>
+<!-- Load d3.js -->
+<script src="https://d3js.org/d3.v5.min.js"></script>
+<style>
+body{	
+	font-family: sans-serif;
+	font-size: 14px;
+	line-height: 1.5em
+}
+#container{
+	display: flex;
+	flex-wrap: wrap;
+}
+#my_dataviz{
+	margin-right: 40px;
+}
+#description{
+	width: 400px;
+}
+#tooltip{
+	opacity: 0;
+	background-color: "white";
+	border: 1px solid #CCC;
+	border-radius: 5px;
+	height: 70px;
+	line-height: 1.5em;
+	margin: 50px 0 20px 0;
+	padding: 10px;
+}
+#about{
+	border: 1px solid #CCC;
+	border-radius: 5px;
+	padding: 20px;
+}
+#about em{
+	text-decoration: underline;
+}
+</style>
+</head>
+<body>
+	<div id="container">
+		<!-- Create a div where the graph will take place -->
+		<div id="my_dataviz"></div>
+
+		<div id="description">
+			<!-- Create a div for the tooltip -->
+			<div id="tooltip"></div>
+			<div id="about">
+				<h2>About this visualization</h2>
+				<p>
+				This chord diagram illustrates <b>export values between regions all over the world in 2018</b>.
+				</p>
+				<h3>How can I read this data visualization ?</h3>
+				<p>
+				You can <b>mouseover a region</b> to show the total export value to other regions. Each ribbon (edge) relates two regions. <b>When a ribbon is hovered</b> with mouse, a tooltip is shown to display the export values details of the two connected region nodes.<br/>
+				The color of the ribbon is the same as the region color having bigger export value.<br/>
+				The size of the ribbons (edges) and the size of regions (nodes) are proportional to the importance of the export flow.
+				</p>
+				<h3>What makes chord diagram interesting for presenting such data ?</h3>
+				<p>
+				Chord diagram is suitable for analyzing data at a glance by detecting the most important export flows between regions and their dependencies. Colors codes contribute also to facilitating reading data.
+				</p>
+				<h3>About the data</h3>
+				<p>This data is collected from the <a href="https://wits.worldbank.org/countrystats.aspx" title="World Bank - World Integrated Trade Solution" target="_blank">world bank website</a> for the year 2018. This subset of data <em>does not consider the internal export values</em> between countries in the same region.
+				</p>
+				<hr/>
+				<h2>About this version</h2>
+				<ul>
+					<li><b>Author :</b> <a href="https://oussamabenkhiroun.com/" title="Oussama Ben Khiroun" target="_blank"><b>Oussama Ben Khiroun</b></a></li>
+					<li><b>Language :</b> JavaScript data visualization using D3.js and SVG</li>
+					<li><b>Visualization type :</b> Chord diagram
+					<li><b>Design :</b> D3.js library</li>
+					<li><b>Source Code :</b> <a href="https://github.com/oussbenk/dataviz" title="GitHub Repo" target="_blank">GitHub</a></li>
+					<li><b>License :</b> This work is licensed under a <a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/" target="_blank">Creative Commons Attribution-NonCommercial 4.0 International License</a>		
+					&nbsp;<a rel="license" href="http://creativecommons.org/licenses/by-nc/4.0/" target="_blank"><img alt="Creative Commons License" style="border-width:0" src="https://i.creativecommons.org/l/by-nc/4.0/80x15.png" /></a></li>
+				</ul>
+			</div>
+		</div>
+	</div>
+</body>
+
+<script>
+
+// create the svg area
+var innerRadius = 230;
+var outerRadius = 250;
+
+var svg = d3.select("#my_dataviz")
+	.append("svg")
+	.attr("width", outerRadius * 3)
+	.attr("height", outerRadius * 3.2)
+	.append("g")
+	.attr("transform", `translate(${outerRadius * 1.7},${outerRadius * 1.6})`)
+	.attr("font-size", 10)
+	.attr("font-family", "sans-serif");
+
+// create a matrix
+var matrix = [
+  [0, 904851, 245251, 227931, 925525, 252128, 112664, 1415],
+  [803258, 0, 165985, 345579, 599176, 103072, 98396, 39266],
+  [187460, 122890, 0, 25690, 448763, 15214, 6682, 26942],
+  [103676, 111890, 7772, 0, 34828, 45572, 20279, 546351],
+  [452469, 408288, 439227, 79272, 0, 44782, 17959, 4],
+  [83642, 76345, 13625, 58024, 58518, 0, 21979, 2538],
+  [65219, 84290, 5807, 11774, 18009, 29066, 0, 8435],
+  [0, 0, 0, 0, 0, 0, 0, 0]
+];
+var countries = ['East Asia & Pacific',
+'Europe & Central Asia',
+'Latin America & Caribbean',
+'Middle East & North Africa',
+'North America',
+'South Asia',
+'Sub-saharan Africa',
+'Unspecified']
+
+//var color = d3.schemeSet1;
+var color = d3.schemeSet2;
+//var color = d3.schemeSet3;
+//var color = d3.schemeTableau10;
+
+
+// give this matrix to d3.chord(): it will calculates all the info we need to draw arc and ribbon
+var res = d3.chord()
+    .padAngle(0.05)
+    .sortSubgroups(d3.descending)
+    (matrix)
+
+// add the groups on the inner part of the circle
+const group =  svg
+	.datum(res)
+	.append("g")
+	.selectAll("g")
+	.data(function(d) { return d.groups; })
+	.enter()
+  
+var paths = group.append("g")
+  .append("path")
+	.attr("fill", d => color[d.index % 8])
+	.attr("stroke", d => d3.rgb(color[d.index % 8]).darker())
+    .attr("d", d3.arc()
+      .innerRadius(innerRadius)
+      .outerRadius(outerRadius)
+    )
+	.on("mouseover", fade(.1, "in"))
+    .on("mouseout", fade(1, "out"));
+
+var groupText = group.append("text")
+      .attr("x", 6)
+      .attr("dy", 13)  
+	  .each(d => { d.angle = (d.startAngle + d.endAngle) / 2; })
+      .attr("dy", ".35em")
+      .attr("transform", d => `
+        rotate(${(d.angle * 180 / Math.PI - 90)})
+        translate(${outerRadius + 20})
+        ${d.angle > Math.PI ? "rotate(180)" : ""}
+      `)
+      .attr("text-anchor", d => d.angle > Math.PI ? "end" : null)
+	  .text(function(d, i) { return countries[i]; })
+	.attr("font-size", 14)
+	.attr("fill", d => color[d.index % 8]);
+  
+	groupText.append("textPath")
+		.attr("xlink:href", function(d, i) { return "#group" + i; })	
+		.text(function(d, i) { return countries[i]; });
+
+// Function for formatting numerical data with thousands commas separation	
+var formatValue = d3.format(",");
+
+const groupTick = group.append("g")
+    .selectAll("g")
+    .data(d => groupTicks(d, 2e4))
+    .join("g")
+      .attr("transform", function(d) {
+       return "rotate(" + (d.angle * 180 / Math.PI - 90) + ")"
+           + "translate(" + outerRadius + ",0)";
+     });
+
+	groupTick.append("line")
+		.attr("stroke", "#CCC")
+		.attr("x2", 5);
+
+	groupTick
+		.filter(d => d.value % 500e3 === 0)
+		.append("text")
+		.attr("x", 8)
+		.attr("dy", ".35em")
+		.attr("transform", d => d.angle > Math.PI ? "rotate(180) translate(-16)" : null)
+		.attr("text-anchor", d => d.angle > Math.PI ? "end" : null)
+		.text(d => "$" + formatValue(d.value) + "M");
+
+// Add the links (cords) between groups
+const ribbons = svg
+	.datum(res)	
+	.append("g")
+	.attr("class", "chord")
+	.selectAll("path")
+	.data(function(d) { return d; })
+	.enter()
+	.append("path")
+	.attr("d", d3.ribbon()
+		.radius(innerRadius)
+	)
+	.attr("fill", d => "#CCC")
+	.attr("stroke", d => d3.rgb(color[d.source.index % 8]).darker())
+	.on("mouseover", showTooltip )
+	.on("mouseleave", hideTooltip );
+
+var tooltip = d3.select("#tooltip");
+
+// A function that change this tooltip when the user hover a point.
+function showTooltip (d) {
+	var chordUnderMouse = this;
+	d3.selectAll("g.chord path")
+		.filter(function(d,i) {
+		  return (this !== chordUnderMouse);
+		})
+		.style("opacity", .1);
+		
+	d3.select(this)
+		.attr("fill", d => color[d.source.index % 8])
+		.style("opacity", 1);
+
+	var srcIndex = d.source.index;
+	var trgIndex = d.target.index;
+	
+	tooltip
+		.style("opacity", 1)
+		.html("Export from <span style='color:"+ color[srcIndex % 8] + "'> " + countries[srcIndex] + "</span>: <b>" + formatValue(matrix[srcIndex][trgIndex]) + "</b> million dollars" + 
+		"<br>Export from <span style='color:"+ color[trgIndex % 8] + "'> " + countries[trgIndex] + "</span>: <b>" + formatValue(matrix[trgIndex][srcIndex]) + "</b> million dollars")
+		.style("border-color", color[srcIndex % 8])
+		//.style("background-color", d3.rgb(color[d.source.index % 8]).brighter())
+}
+
+// A function that change this tooltip when the leaves a point
+function hideTooltip(d) {
+	svg.selectAll("g.chord path")
+		.style("opacity", 1);
+	d3.select(this)
+		.attr("fill", d => "#CCC");	
+	tooltip.style("opacity", 0);
+}
+
+// Returns an event handler for fading a given chord group
+ function fade(opacity, inout) {
+   return function(g, i) {
+	// Reduce opacity for other chords
+     svg.selectAll("g.chord path")
+		.filter(function(d) {
+           return d.source.index != i && d.target.index != i;
+        })
+		.style("opacity", opacity)
+	// Apply style on hovered chord
+	svg.selectAll("g.chord path")
+		.filter(function(d) {
+		   return d.source.index == i || d.target.index == i;
+			})
+		.attr("fill",  inout=="in"?d => color[d.source.index % 8]:d => "#CCC");
+	// Show/Hide tooltip	
+	if(inout=="in"){
+		tooltip
+		.style("opacity", 1)
+		.html("Total <span style='color:"+ color[i % 8] + "'> " + countries[i] + " </span> exports to other regions: <br/><b>" + formatValue(totalExportsOfRegion(i)) + "</b> million dollars")
+		.style("border-color", color[i % 8]);
+	}else{
+		tooltip
+			.style("opacity", 0)
+	}
+
+  };
+ }
+ 
+// Returns an array of tick angles and labels, given a group
+ function groupTicks(d, step) {
+  const k = (d.endAngle - d.startAngle) / d.value;
+  return d3.range(0, d.value, step).map(value => {
+    return {value: value, angle: value * k + d.startAngle};
+  });
+}
+
+// Function that sum line data of matrix
+function totalExportsOfRegion(index){
+	var res = 0;
+	for(var i=0; i<8; i++){
+		res = res + matrix[index][i];
+	}
+	return res;
+}
+</script>
+
+</html>
