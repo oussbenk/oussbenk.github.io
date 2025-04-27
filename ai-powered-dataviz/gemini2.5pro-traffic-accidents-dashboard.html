@@ -1,0 +1,1186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Traffic Accident Dashboard (V2)</title>
+    <!-- Chart.js Library -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Moment.js (Optional but helpful for date formatting, especially for charts) -->
+    <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-moment@1.0.1/dist/chartjs-adapter-moment.min.js"></script>
+    <!-- PapaParse Library for CSV Parsing -->
+    <script src="https://cdn.jsdelivr.net/npm/papaparse@5.5.2/papaparse.min.js"></script>
+      <!-- Bootstrap CSS File -->
+    <link href="../lib/bootstrap/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            font-family: sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        h1, h2 {
+            color: #333;
+            text-align: center; /* Center main title */
+        }
+        #fileLoader, #controls, #kpis, #charts {
+            background-color: #fff;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            width: 95%;
+            max-width: 1400px; /* Increased max-width */
+        }
+        #controls > div, #fileLoader > div {
+            margin-bottom: 15px;
+            display: flex; /* Align items in filter rows */
+            flex-wrap: wrap; /* Allow wrapping on smaller screens */
+            align-items: center;
+        }
+        label {
+            margin-right: 10px;
+            font-weight: bold;
+            min-width: 100px; /* Minimum label width */
+        }
+        select, input[type="date"] {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            margin-right: 20px; /* Spacing between filters */
+            margin-bottom: 5px; /* Spacing if wrapped */
+            flex-grow: 1; /* Allow inputs to grow */
+            min-width: 150px;
+        }
+         input[type="file"] {
+             padding: 5px;
+             margin-bottom: 5px;
+         }
+        button {
+            padding: 10px 15px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            margin-right: 10px;
+             margin-bottom: 5px;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #kpis {
+            display: grid; /* Use grid for KPIs */
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); /* Responsive KPI boxes */
+            gap: 15px;
+            text-align: center;
+        }
+        #kpis > div {
+            background-color: #e9ecef;
+            padding: 15px;
+            border-radius: 5px;
+        }
+         #kpis h3 {
+            margin: 0 0 5px 0;
+            font-size: 1em; /* Smaller KPI title */
+            color: #555;
+         }
+        #kpis .kpi-value {
+            font-size: 1.6em; /* Slightly smaller KPI value */
+            font-weight: bold;
+            color: #007bff;
+        }
+        #charts {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); /* Responsive grid */
+            gap: 25px; /* Increased gap */
+        }
+        .chart-container {
+            position: relative;
+            /* min-height: 350px; Set min-height instead of fixed height */
+            height: 400px; /* Fixed height for consistency */
+            background-color: #fff;
+            padding: 15px;
+            border: 1px solid #eee;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+        .chart-container h2 {
+            font-size: 1.2em;
+            margin-top: 0;
+            margin-bottom: 15px;
+            text-align: center;
+            color: #444;
+        }
+        #status {
+            margin-top: 15px;
+            font-style: italic;
+            color: #666;
+            text-align: center;
+        }
+        .loader {
+            border: 5px solid #f3f3f3;
+            border-top: 5px solid #3498db;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+            margin: 20px auto;
+            display: none; /* Initially hidden */
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* Tooltip styling for bubble chart */
+        .chartjs-tooltip {
+            opacity: 1;
+            pointer-events: none;
+            position: absolute;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            border-radius: 3px;
+            padding: 5px;
+            font-size: 12px;
+            transition: all .1s ease;
+            z-index: 10;
+        }
+
+    </style>
+</head>
+<body>
+    <h1>Traffic Accident Dashboard</h1>
+    
+    <p class="alert alert-danger"><b>Used dataset</b> : <a href="https://www.kaggle.com/datasets/oktayrdeki/traffic-accidents" target="_blank">Traffic Accidents from Kaggle <b>(download CSV ⬇️)</b></a></p>
+    <div class="alert alert-success">    
+        <h4>How to test this simulation ?</h4>
+        <ol>
+            <li>Download locally on your machine the dataset from the <a href="https://www.kaggle.com/datasets/oktayrdeki/traffic-accidents" target="_blank">Kaggle link</a> above in CSV format.</li>
+            <li>Upload it through the proposed button below.</li>
+        </ol>
+    </div>
+
+    <div id="fileLoader">
+         <div>
+            <label for="csvFile">Load Accident Data (CSV):</label>
+            <input type="file" id="csvFile" accept=".csv">
+         </div>
+        <div id="status">Please select a CSV file to load the data. Column names expected include: crash_date, most_severe_injury, weather_condition, injuries_total, lighting_condition, crash_hour, crash_day_of_week.</div>
+        <div id="loader" class="loader"></div>
+        <small style="display: block; text-align: center; margin-top: 10px;">Note: Processing happens in your browser. Large files may take time or cause slowdowns. Date format for 'crash_date' must be parsable by JavaScript's `new Date()`.</small>
+    </div>
+
+    <div id="controls" style="display: none;"> <!-- Initially hidden until data loads -->
+        <h2>Filters</h2>
+        <div>
+            <label for="startDate">Start Date:</label>
+            <input type="date" id="startDate">
+            <label for="endDate">End Date:</label>
+            <input type="date" id="endDate">
+        </div>
+        <div>
+            <label for="severityFilter">Most Severe Injury:</label>
+            <select id="severityFilter">
+                <option value="">All</option>
+            </select>
+            <label for="weatherFilter">Weather:</label>
+            <select id="weatherFilter">
+                <option value="">All</option>
+            </select>
+             <label for="lightFilter">Lighting:</label>
+            <select id="lightFilter">
+                <option value="">All</option>
+            </select>
+        </div>
+         <div>
+             <button id="applyFiltersBtn">Apply Filters</button>
+             <button id="resetFiltersBtn">Reset Filters</button>
+         </div>
+    </div>
+
+    <div id="kpis" style="display: none;"> <!-- Initially hidden -->
+        <div>
+            <h3>Total Accidents (Loaded)</h3>
+            <div id="totalAccidents" class="kpi-value">0</div>
+        </div>
+        <div>
+            <h3>Total Injuries (Loaded)</h3>
+            <div id="totalCasualties" class="kpi-value">0</div>
+        </div>
+         <div>
+            <h3>Fatal Injuries (Loaded)</h3>
+            <div id="fatalInjuries" class="kpi-value">0</div>
+        </div>
+         <div>
+            <h3>Incapacitating Injuries (Loaded)</h3>
+            <div id="incapInjuries" class="kpi-value">0</div>
+        </div>
+        <div>
+            <h3>Accidents (Filtered)</h3>
+            <div id="filteredAccidents" class="kpi-value">0</div>
+        </div>
+         <div>
+            <h3>Total Injuries (Filtered)</h3>
+            <div id="filteredCasualties" class="kpi-value">0</div>
+        </div>
+    </div>
+
+    <div id="charts" style="display: none;"> <!-- Initially hidden -->
+        <!-- Existing Charts -->
+        <div class="chart-container">
+             <h2>Accidents Over Time</h2>
+            <canvas id="timeTrendChart"></canvas>
+        </div>
+        <div class="chart-container">
+             <h2>Accidents by Day & Hour</h2>
+             <canvas id="timeDayHeatmap"></canvas>
+        </div>
+         <div class="chart-container">
+            <h2>Accidents by Most Severe Injury</h2>
+            <canvas id="severityChart"></canvas>
+        </div>
+        <div class="chart-container">
+             <h2>Accidents by Weather Condition</h2>
+            <canvas id="weatherChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h2>Accidents by Lighting Condition</h2>
+            <canvas id="lightConditionChart"></canvas>
+        </div>
+
+        <!-- **** NEW CHARTS START HERE **** -->
+        <div class="chart-container">
+            <h2>Top 10 Primary Contributory Causes</h2>
+            <canvas id="causeChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h2>Crash Type by Severity</h2>
+            <canvas id="crashTypeSeverityChart"></canvas>
+        </div>
+         <div class="chart-container">
+            <h2>Vehicles Involved vs. Total Injuries</h2>
+            <canvas id="unitsVsInjuriesChart"></canvas>
+        </div>
+         <div class="chart-container">
+            <h2>Accidents by Road Surface Condition</h2>
+            <canvas id="roadSurfaceChart"></canvas>
+        </div>
+        <!-- **** NEW CHARTS END HERE **** -->
+
+    </div>
+
+    <script defer>
+        // --- Configuration ---
+        const COLUMN_NAMES = {
+            date: 'crash_date',
+            severity: 'most_severe_injury',
+            weather: 'weather_condition',
+            casualties: 'injuries_total',
+            light: 'lighting_condition',
+            // crashType: 'first_crash_type', // Using this one now
+            roadSurface: 'roadway_surface_cond', // Using this one now
+            crashHour: 'crash_hour',
+            crashDay: 'crash_day_of_week',
+            numUnits: 'num_units', // Using this one now
+            fatalInjuries: 'injuries_fatal',
+            incapInjuries: 'injuries_incapacitating',
+            nonIncapInjuries: 'injuries_non_incapacitating',
+            noIndicationInjuries: 'injuries_no_indication',
+            // ---- NEWLY ADDED/USED ----
+            primaryCause: 'prim_contributory_cause', // Added for Cause Chart
+            firstCrashType: 'first_crash_type', // Added for Crash Type chart
+            // intersectionRelated: 'intersection_related_i', // Optional, if needed later
+            // damage: 'damage' // Optional, if needed later
+        };
+
+        // --- Global Variables ---
+        let rawData = [];
+        let filteredData = [];
+        let charts = {}; // To hold chart instances
+        const statusDiv = document.getElementById('status');
+        const loaderDiv = document.getElementById('loader');
+        const fileInput = document.getElementById('csvFile');
+        const controlsDiv = document.getElementById('controls');
+        const kpisDiv = document.getElementById('kpis');
+        const chartsDiv = document.getElementById('charts');
+        const startDateInput = document.getElementById('startDate');
+        const endDateInput = document.getElementById('endDate');
+        const severityFilter = document.getElementById('severityFilter');
+        const weatherFilter = document.getElementById('weatherFilter');
+        const lightFilter = document.getElementById('lightFilter'); // New filter element
+        const applyFiltersBtn = document.getElementById('applyFiltersBtn');
+        const resetFiltersBtn = document.getElementById('resetFiltersBtn');
+
+        // Day names map (Adjust if crashDay starts from Monday=1)
+        const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]; // Assuming 1=Sunday, 7=Saturday based on getDay()
+        // const dayNames = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]; // If crash_day_of_week is 1=Monday
+
+        // --- Event Listeners ---
+        fileInput.addEventListener('change', handleFileSelect, false);
+        applyFiltersBtn.addEventListener('click', applyFiltersAndRedraw);
+        resetFiltersBtn.addEventListener('click', resetFiltersAndRedraw);
+
+        // --- Functions ---
+
+        function showLoader(show) {
+            loaderDiv.style.display = show ? 'block' : 'none';
+        }
+
+        function handleFileSelect(event) {
+            const file = event.target.files[0];
+            if (!file) {
+                statusDiv.textContent = 'No file selected.';
+                return;
+            }
+             if (!file.name.endsWith('.csv')) {
+                 statusDiv.textContent = 'Error: Please select a CSV file.';
+                 fileInput.value = ''; // Clear the input
+                 return;
+            }
+
+            statusDiv.textContent = `Loading and parsing ${file.name}...`;
+            showLoader(true);
+            controlsDiv.style.display = 'none';
+            kpisDiv.style.display = 'none';
+            chartsDiv.style.display = 'none';
+            destroyCharts();
+
+            Papa.parse(file, {
+                header: true,
+                skipEmptyLines: true,
+                dynamicTyping: true, // Attempts automatic type conversion
+                complete: function(results) {
+                    if (results.errors.length > 0) {
+                        console.error("CSV Parsing Errors:", results.errors);
+                        statusDiv.textContent = `Error parsing CSV (Check console). Common issues: incorrect delimiter, quotes, or header row mismatch.`;
+                        showLoader(false);
+                        fileInput.value = '';
+                        return;
+                    }
+
+                    rawData = results.data;
+                    console.log(`Loaded ${rawData.length} rows.`);
+                    statusDiv.textContent = `Successfully loaded ${rawData.length} rows from ${file.name}. Validating...`;
+                    showLoader(false); // Hide loader before validation potentially takes time
+
+                    if (rawData.length === 0) {
+                         statusDiv.textContent = "CSV loaded, but appears empty or has no data rows.";
+                         return;
+                    }
+
+                    // Essential column validation
+                    const essentialCols = [
+                        COLUMN_NAMES.date, COLUMN_NAMES.severity, COLUMN_NAMES.weather,
+                        COLUMN_NAMES.casualties, COLUMN_NAMES.light, COLUMN_NAMES.crashHour,
+                        COLUMN_NAMES.crashDay, COLUMN_NAMES.fatalInjuries, COLUMN_NAMES.incapInjuries
+                    ];
+                    const firstRow = rawData[0];
+                    const missingCols = essentialCols.filter(col => !(col in firstRow));
+                    if (missingCols.length > 0) {
+                         statusDiv.textContent = `Error: Missing essential columns in CSV: ${missingCols.join(', ')}. Please check COLUMN_NAMES in the script or the CSV header.`;
+                         rawData = [];
+                         fileInput.value = '';
+                         return;
+                    }
+
+                    statusDiv.textContent = `Processing ${rawData.length} rows... (Converting dates, etc.)`;
+                    // Use setTimeout to allow the status message to render before potentially long processing
+                    setTimeout(() => {
+                        preprocessData(); // Convert dates, ensure numbers
+                        if (rawData.length === 0) {
+                            statusDiv.textContent = `Processing complete, but no valid data remained after date conversion/validation. Check 'crash_date' format.`;
+                            return; // Stop if preprocessing removed all data
+                        }
+                        populateFilters();
+                        resetFilters(); // Sets initial filters and calls applyFilters()
+                        updateDashboard();
+                        controlsDiv.style.display = 'block';
+                        kpisDiv.style.display = 'grid'; // Use grid display
+                        chartsDiv.style.display = 'grid'; // Use grid display
+                        statusDiv.textContent = `Dashboard ready. Displaying ${filteredData.length} of ${rawData.length} records.`;
+                    }, 50); // Small delay
+
+                },
+                error: function(error) {
+                    console.error("PapaParse Error:", error);
+                    statusDiv.textContent = `Error reading file: ${error.message}`;
+                    showLoader(false);
+                    fileInput.value = '';
+                }
+            });
+        }
+
+        function preprocessData() {
+            const dateCol = COLUMN_NAMES.date;
+            const casualtiesCol = COLUMN_NAMES.casualties;
+            const fatalCol = COLUMN_NAMES.fatalInjuries;
+            const incapCol = COLUMN_NAMES.incapInjuries;
+            const hourCol = COLUMN_NAMES.crashHour;
+            const dayCol = COLUMN_NAMES.crashDay;
+            const causeCol = COLUMN_NAMES.primaryCause;
+            const crashTypeCol = COLUMN_NAMES.firstCrashType;
+            const unitsCol = COLUMN_NAMES.numUnits;
+
+            let invalidDateCount = 0;
+
+            rawData = rawData.map(row => {
+                if (!row || typeof row !== 'object') return null; // Skip empty/invalid rows
+
+                // Date Parsing - CRITICAL: Adjust if necessary!
+                let dateStr = row[dateCol];
+                if (dateStr) {
+                    // Attempt direct parsing first (handles ISO, some common formats)
+                    row._dateObject = new Date(dateStr);
+                    // Add more robust parsing here if needed (e.g., using Moment.js if included)
+                    // Example with Moment: row._dateObject = moment(dateStr, "MM/DD/YYYY hh:mm:ss A").toDate();
+
+                    if (isNaN(row._dateObject) || !row._dateObject) {
+                        invalidDateCount++;
+                        row._dateObject = null; // Mark as invalid
+                    }
+                } else {
+                    invalidDateCount++;
+                    row._dateObject = null;
+                }
+
+                // Ensure numeric types (handle potential nulls/blanks from CSV)
+                //row[casualtiesCol] = parseInt(row[casualtiesCol], 10) || 0;
+                row[casualtiesCol] = parseInt(row[casualtiesCol]) || 0;
+                row[fatalCol] = parseInt(row[fatalCol], 10) || 0;
+                row[incapCol] = parseInt(row[incapCol], 10) || 0;
+                row[hourCol] = parseInt(row[hourCol], 10); // Keep as number, handle NaN later if needed
+                row[dayCol] = parseInt(row[dayCol], 10);     // Keep as number, handle NaN later if needed
+
+                // Clean up text fields (trim whitespace, handle nulls)
+                row[COLUMN_NAMES.severity] = (row[COLUMN_NAMES.severity] || 'UNKNOWN').toString().trim();
+                row[COLUMN_NAMES.weather] = (row[COLUMN_NAMES.weather] || 'UNKNOWN').toString().trim();
+                row[COLUMN_NAMES.light] = (row[COLUMN_NAMES.light] || 'UNKNOWN').toString().trim();
+                row[unitsCol] = parseInt(row[unitsCol], 10) || 0; // Make sure units is parsed
+
+                // Clean up text fields
+                row[COLUMN_NAMES.severity] = (row[COLUMN_NAMES.severity] || 'UNKNOWN').toString().trim();
+                row[COLUMN_NAMES.weather] = (row[COLUMN_NAMES.weather] || 'UNKNOWN').toString().trim();
+                row[COLUMN_NAMES.light] = (row[COLUMN_NAMES.light] || 'UNKNOWN').toString().trim();
+                // Add cleaning for new text fields
+                if (causeCol) row[causeCol] = (row[causeCol] || 'UNKNOWN').toString().trim();
+                if (crashTypeCol) row[crashTypeCol] = (row[crashTypeCol] || 'UNKNOWN').toString().trim();
+
+                return row;
+            }).filter(row => row && row._dateObject); // Filter out rows with invalid dates
+
+            if (invalidDateCount > 0) {
+                 console.warn(`Could not parse ${invalidDateCount} date entries. Check the format in the CSV and the parsing logic in preprocessData().`);
+            }
+            console.log(`Processed ${rawData.length} valid rows after date validation.`);
+
+            // Sort by date (optional, but good for time series)
+            if (rawData.length > 0) {
+                rawData.sort((a, b) => a._dateObject - b._dateObject);
+            }
+        }
+
+       
+        function populateFilters() {
+            // Clear existing options (except 'All')
+            severityFilter.innerHTML = '<option value="">All</option>';
+            weatherFilter.innerHTML = '<option value="">All</option>';
+            lightFilter.innerHTML = '<option value="">All</option>'; // Clear new filter
+
+            // Get unique values using the cleaned-up data
+            const severities = getUniqueValues(rawData, COLUMN_NAMES.severity);
+            const weatherConditions = getUniqueValues(rawData, COLUMN_NAMES.weather);
+            const lightConditions = getUniqueValues(rawData, COLUMN_NAMES.light); // Populate new filter
+
+            populateSelect(severityFilter, severities);
+            populateSelect(weatherFilter, weatherConditions);
+            populateSelect(lightFilter, lightConditions); // Populate new filter
+
+             // Set default date range based on data
+             if (rawData.length > 0) {
+                 const firstDate = rawData[0]._dateObject;
+                 const lastDate = rawData[rawData.length - 1]._dateObject;
+                 startDateInput.valueAsDate = firstDate;
+                 endDateInput.valueAsDate = lastDate;
+                 startDateInput.min = firstDate.toISOString().split('T')[0];
+                 startDateInput.max = lastDate.toISOString().split('T')[0];
+                 endDateInput.min = firstDate.toISOString().split('T')[0];
+                 endDateInput.max = lastDate.toISOString().split('T')[0];
+             } else {
+                 // Clear date inputs if no data
+                  startDateInput.value = '';
+                  endDateInput.value = '';
+                  startDateInput.min = '';
+                  startDateInput.max = '';
+                  endDateInput.min = '';
+                  endDateInput.max = '';
+             }
+        }
+
+        function populateSelect(selectElement, values) {
+             values.forEach(val => {
+                const option = document.createElement('option');
+                option.value = val;
+                // Use 'UNKNOWN' for blank/null values if they exist after cleaning
+                option.textContent = val === '' ? 'UNKNOWN' : val;
+                selectElement.appendChild(option);
+            });
+        }
+
+
+        function getUniqueValues(data, columnName) {
+            const values = new Set();
+            data.forEach(row => {
+                 // Check if row exists and has the property
+                 if (row && typeof row === 'object' && row.hasOwnProperty(columnName)) {
+                     // Add the value (already cleaned in preprocessData)
+                    values.add(row[columnName]);
+                 }
+            });
+            // Convert to array, sort alphabetically (case-insensitive)
+            return Array.from(values).sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+        }
+
+        function resetFilters() {
+             if (rawData.length > 0) {
+                 startDateInput.valueAsDate = rawData[0]._dateObject;
+                 endDateInput.valueAsDate = rawData[rawData.length - 1]._dateObject;
+             } else {
+                  startDateInput.value = '';
+                  endDateInput.value = '';
+             }
+             severityFilter.value = '';
+             weatherFilter.value = '';
+             lightFilter.value = ''; // Reset new filter
+             applyFilters(); // Apply default filters
+        }
+
+         function resetFiltersAndRedraw() {
+             resetFilters();
+             updateDashboard();
+         }
+
+        function applyFiltersAndRedraw() {
+            applyFilters();
+            updateDashboard();
+        }
+
+        function applyFilters() {
+            const start = startDateInput.value ? new Date(startDateInput.value) : null;
+            const end = endDateInput.value ? new Date(endDateInput.value) : null;
+            if (end) end.setHours(23, 59, 59, 999); // Include the whole end day
+
+            const severity = severityFilter.value;
+            const weather = weatherFilter.value;
+            const light = lightFilter.value; // Get value from new filter
+
+            filteredData = rawData.filter(row => {
+                // Date filter
+                if (start && row._dateObject < start) return false;
+                if (end && row._dateObject > end) return false;
+
+                // Categorical filters (check if a value is selected before filtering)
+                if (severity && row[COLUMN_NAMES.severity] !== severity) return false;
+                if (weather && row[COLUMN_NAMES.weather] !== weather) return false;
+                if (light && row[COLUMN_NAMES.light] !== light) return false; // Apply new filter
+
+                return true; // Pass if all conditions met
+            });
+             console.log(`Filtered data count: ${filteredData.length}`);
+        }
+
+        function updateDashboard() {
+            if (!rawData || rawData.length === 0) {
+                statusDiv.textContent = "No data loaded or processed successfully.";
+                return;
+            };
+            if (!filteredData) return;
+
+            statusDiv.textContent = `Displaying ${filteredData.length} records out of ${rawData.length} total.`;
+
+            updateKPIs();
+            updateCharts();
+        }
+
+        function updateKPIs() {
+            // Helper to safely get a number from a row
+            const getNumericValue = (row, colName) => {
+                const val = row ? row[colName] : undefined;
+                // Return the number if it's valid, otherwise 0
+                return (typeof val === 'number' && !isNaN(val)) ? val : 0;
+            };
+
+            // Calculate totals directly using reduce
+            const totalCasualties = rawData.reduce((acc, row) => acc + getNumericValue(row, COLUMN_NAMES.casualties), 0);
+            const totalFatal = rawData.reduce((acc, row) => acc + getNumericValue(row, COLUMN_NAMES.fatalInjuries), 0);
+            const totalIncap = rawData.reduce((acc, row) => acc + getNumericValue(row, COLUMN_NAMES.incapInjuries), 0);
+
+            const filteredCasualties = filteredData.reduce((acc, row) => acc + getNumericValue(row, COLUMN_NAMES.casualties), 0);
+            // You could calculate filtered fatal/incap here too if needed
+            // const filteredFatal = filteredData.reduce((acc, row) => acc + getNumericValue(row, COLUMN_NAMES.fatalInjuries), 0);
+            // const filteredIncap = filteredData.reduce((acc, row) => acc + getNumericValue(row, COLUMN_NAMES.incapInjuries), 0);
+
+
+            // --- Debugging ---
+            // Uncomment these lines temporarily to check the first few rows and sums
+            /*
+            if (rawData.length > 0) {
+                console.log("First raw row data for injuries:", {
+                    total: rawData[0][COLUMN_NAMES.casualties],
+                    fatal: rawData[0][COLUMN_NAMES.fatalInjuries],
+                    incap: rawData[0][COLUMN_NAMES.incapInjuries]
+                });
+            }
+            console.log("Calculated KPI sums:", { totalCasualties, totalFatal, totalIncap });
+            */
+            // --- End Debugging ---
+
+
+            document.getElementById('totalAccidents').textContent = rawData.length.toLocaleString();
+            document.getElementById('totalCasualties').textContent = totalCasualties.toLocaleString();
+            document.getElementById('fatalInjuries').textContent = totalFatal.toLocaleString(); // Corrected ID if needed
+            document.getElementById('incapInjuries').textContent = totalIncap.toLocaleString(); // Corrected ID if needed
+
+            document.getElementById('filteredAccidents').textContent = filteredData.length.toLocaleString();
+            document.getElementById('filteredCasualties').textContent = filteredCasualties.toLocaleString();
+        }
+
+        function destroyCharts() {
+            Object.values(charts).forEach(chart => {
+                if (chart && typeof chart.destroy === 'function') {
+                    chart.destroy();
+                }
+            });
+            charts = {};
+        }
+
+
+        function updateCharts() {
+            destroyCharts(); // Clear existing charts before drawing new ones
+
+            // Use setTimeout to allow UI to update slightly between chart renders
+            setTimeout(() => createTimeTrendChart(), 10);
+            setTimeout(() => createTimeDayHeatmap(), 10);
+            setTimeout(() => createSeverityChart(), 10);
+            setTimeout(() => createWeatherChart(), 10);
+            setTimeout(() => createLightConditionChart(), 10);
+            // ---- CALL NEW CHART FUNCTIONS ----
+            setTimeout(() => createCauseChart(), 10);
+            setTimeout(() => createCrashTypeSeverityChart(), 10);
+            setTimeout(() => createUnitsVsInjuriesChart(), 10);
+            setTimeout(() => createRoadSurfaceChart(), 10);
+            // ---------------------------------
+
+            // Call functions for other charts here if you add more
+        }
+
+        // --- Chart Creation Functions ---
+
+        function createTimeTrendChart() {
+            const ctx = document.getElementById('timeTrendChart')?.getContext('2d');
+            if (!ctx) return;
+
+            const dataByMonth = {}; // Aggregate by YYYY-MM
+
+            filteredData.forEach(row => {
+                const year = row._dateObject.getFullYear();
+                const month = (row._dateObject.getMonth() + 1).toString().padStart(2, '0');
+                const yearMonth = `${year}-${month}`;
+                dataByMonth[yearMonth] = (dataByMonth[yearMonth] || 0) + 1;
+            });
+
+            const sortedMonths = Object.keys(dataByMonth).sort();
+            const labels = sortedMonths;
+            const dataCounts = sortedMonths.map(month => dataByMonth[month]);
+
+            charts.timeTrend = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Accidents per Month',
+                        data: dataCounts,
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.1)', // Fill area
+                        tension: 0.1,
+                        fill: true // Enable fill
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                         x: {
+                            type: 'time', // Use time scale
+                            time: {
+                                unit: 'month', // Display unit
+                                tooltipFormat: 'MMM YYYY', // Tooltip format
+                                displayFormats: {
+                                    month: 'MMM YYYY' // Axis label format
+                                }
+                            },
+                            title: { display: true, text: 'Month' }
+                        },
+                        y: { title: { display: true, text: 'Number of Accidents' }, beginAtZero: true }
+                    },
+                    plugins: {
+                        title: { display: false },
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        function createTimeDayHeatmap() {
+            const ctx = document.getElementById('timeDayHeatmap')?.getContext('2d');
+             if (!ctx) return;
+
+             const counts = {}; // { day: { hour: count } }
+             // Initialize counts grid
+             for (let d = 1; d <= 7; d++) { // Assuming days are 1-7
+                counts[d] = {};
+                for (let h = 0; h < 24; h++) {
+                    counts[d][h] = 0;
+                }
+             }
+
+             filteredData.forEach(row => {
+                 const day = row[COLUMN_NAMES.crashDay];
+                 const hour = row[COLUMN_NAMES.crashHour];
+                 // Validate day and hour (handle potential NaN or out-of-range)
+                 if (day >= 1 && day <= 7 && hour >= 0 && hour < 24) {
+                     counts[day][hour]++;
+                 }
+             });
+
+             const bubbleData = [];
+             let maxCount = 0;
+             for (let d = 1; d <= 7; d++) {
+                 for (let h = 0; h < 24; h++) {
+                     if (counts[d][h] > 0) {
+                         bubbleData.push({
+                             x: h, // Hour on X-axis
+                             y: d, // Day on Y-axis
+                             v: counts[d][h] // Value for radius/color
+                         });
+                         if (counts[d][h] > maxCount) {
+                             maxCount = counts[d][h];
+                         }
+                     }
+                 }
+             }
+
+            charts.timeDayHeatmap = new Chart(ctx, {
+                type: 'bubble',
+                data: {
+                    datasets: [{
+                        label: 'Accident Count',
+                        data: bubbleData,
+                        backgroundColor: context => {
+                            const value = context.raw.v;
+                            const alpha = Math.max(0.1, Math.min(1, value / (maxCount * 0.8 || 1))); // Scale opacity
+                            return `rgba(255, 99, 132, ${alpha})`; // Example color: red
+                        },
+                        // Radius based on count - adjust multiplier as needed
+                        radius: context => 2 + (context.raw.v / (maxCount || 1)) * 15,
+                        hoverRadius: context => 4 + (context.raw.v / (maxCount || 1)) * 17,
+                        hoverBorderColor: 'rgb(0,0,0)'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: { display: true, text: 'Hour of Day (0-23)' },
+                            min: -1, // Add padding
+                            max: 24,
+                            ticks: { stepSize: 2 }
+                        },
+                        y: {
+                            title: { display: true, text: 'Day of Week' },
+                             min: 0, // Add padding
+                             max: 8,
+                             ticks: {
+                                 stepSize: 1,
+                                 callback: function(value, index, values) {
+                                    // Map day number (1-7) to name
+                                    // Adjust index based on how dayNames is defined
+                                    return dayNames[value-1] || ''; // -1 if dayNames is 0-indexed
+                                 }
+                             }
+                        }
+                    },
+                    plugins: {
+                         title: { display: false },
+                         legend: { display: false }, // Hide legend for bubble size
+                         tooltip: {
+                             callbacks: {
+                                 label: function(context) {
+                                     const dataPoint = context.raw;
+                                     const dayIndex = dataPoint.y - 1; // Adjust if needed
+                                     const dayLabel = dayNames[dayIndex] || 'Unknown Day';
+                                     const hourLabel = dataPoint.x;
+                                     const countLabel = dataPoint.v;
+                                     return `${dayLabel}, ${hourLabel}:00 - ${hourLabel}:59 : ${countLabel} accidents`;
+                                 }
+                             }
+                         }
+                    }
+                }
+            });
+        }
+
+
+        function createSeverityChart() {
+            const ctx = document.getElementById('severityChart')?.getContext('2d');
+             if (!ctx) return;
+            const dataBySeverity = countOccurrences(filteredData, COLUMN_NAMES.severity);
+
+            const labels = Object.keys(dataBySeverity);
+            const dataCounts = Object.values(dataBySeverity);
+
+             // Define specific colors (adjust as needed for your injury types)
+             const severityColors = {
+                'FATAL': 'rgba(211, 47, 47, 0.8)', // Dark Red
+                'INCAPACITATING INJURY': 'rgba(255, 111, 0, 0.8)', // Orange
+                'NON INCAPACITATING INJURY': 'rgba(255, 193, 7, 0.8)', // Amber/Yellow
+                'REPORTED, NOT EVIDENT': 'rgba(75, 192, 192, 0.8)', // Teal
+                'NO INDICATION OF INJURY': 'rgba(158, 158, 158, 0.7)', // Grey
+                'UNKNOWN': 'rgba(200, 200, 200, 0.7)' // Light Grey
+             };
+             const backgroundColors = labels.map(label => severityColors[label.toUpperCase()] || 'rgba(201, 203, 207, 0.7)'); // Default grey, case-insensitive match
+
+
+            charts.severity = new Chart(ctx, {
+                type: 'doughnut', // Doughnut looks nice
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Accidents by Severity',
+                        data: dataCounts,
+                        backgroundColor: backgroundColors,
+                        borderColor: '#fff', // White border between segments
+                        borderWidth: 1,
+                        hoverOffset: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                     plugins: {
+                        title: { display: false },
+                        legend: {
+                            position: 'bottom', // Better position for doughnut
+                             labels: { padding: 15 }
+                        },
+                    }
+                }
+            });
+        }
+
+        function createWeatherChart() {
+            const ctx = document.getElementById('weatherChart')?.getContext('2d');
+             if (!ctx) return;
+            createBarChart(ctx, COLUMN_NAMES.weather, 'Weather Condition (Top 10)', 'weather', 'rgba(54, 162, 235, 0.7)', 'rgba(54, 162, 235, 1)');
+        }
+
+        function createLightConditionChart() {
+            const ctx = document.getElementById('lightConditionChart')?.getContext('2d');
+             if (!ctx) return;
+            createBarChart(ctx, COLUMN_NAMES.light, 'Lighting Condition (Top 10)', 'lightCondition', 'rgba(153, 102, 255, 0.7)', 'rgba(153, 102, 255, 1)');
+        }
+
+        // Generic function for creating horizontal bar charts of top N categories
+        function createBarChart(ctx, columnName, yAxisTitle, chartKey, bgColor, borderColor) {
+            const dataCounts = countOccurrences(filteredData, columnName);
+
+            // Sort by count descending and take top N (e.g., top 10)
+            const sortedData = Object.entries(dataCounts)
+                                      .sort(([,a],[,b]) => b-a)
+                                      .slice(0, 10); // Show top 10
+
+            const labels = sortedData.map(entry => entry[0]); // Already cleaned (trimmed, UNKNOWN)
+            const counts = sortedData.map(entry => entry[1]);
+
+            charts[chartKey] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Accident Count',
+                        data: counts,
+                        backgroundColor: bgColor,
+                        borderColor: borderColor,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                     indexAxis: 'y', // Horizontal bars are often better for category labels
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { title: { display: true, text: 'Number of Accidents' }, beginAtZero: true },
+                         y: { title: { display: true, text: yAxisTitle } }
+                    },
+                     plugins: {
+                        title: { display: false }, // Use H2 in container
+                        legend: { display: false } // Only one dataset, legend not needed
+                    }
+                }
+            });
+        }
+
+        // --- Chart Creation Functions --- //
+
+        // ... (existing chart functions: createTimeTrendChart, createTimeDayHeatmap, etc.) ...
+
+        function createCauseChart() {
+            const ctx = document.getElementById('causeChart')?.getContext('2d');
+            if (!ctx) return;
+            const columnName = COLUMN_NAMES.primaryCause;
+            if (!columnName) { console.error("primaryCause column name not defined in COLUMN_NAMES"); return; }
+
+            // Reuse the generic bar chart logic, but handle "Other" category
+            const dataCounts = countOccurrences(filteredData, columnName);
+            const sortedData = Object.entries(dataCounts).sort(([, a], [, b]) => b - a);
+
+            const topN = 10;
+            const topData = sortedData.slice(0, topN);
+            const otherCount = sortedData.slice(topN).reduce((sum, [, count]) => sum + count, 0);
+
+            const labels = topData.map(entry => entry[0]);
+            const counts = topData.map(entry => entry[1]);
+
+            if (otherCount > 0) {
+                labels.push(`Other ( ${sortedData.length - topN} types)`);
+                counts.push(otherCount);
+            }
+
+            charts['cause'] = new Chart(ctx, {
+                type: 'bar', // Horizontal bar chart
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Accident Count',
+                        data: counts,
+                        backgroundColor: 'rgba(255, 159, 64, 0.7)', // Orange theme
+                        borderColor: 'rgba(255, 159, 64, 1)',
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                     indexAxis: 'y', // Make it horizontal
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { title: { display: true, text: 'Number of Accidents' }, beginAtZero: true },
+                        y: { title: { display: false } } // Title is in container H2
+                    },
+                     plugins: {
+                        title: { display: false },
+                        legend: { display: false }
+                    }
+                }
+            });
+        }
+
+        function createCrashTypeSeverityChart() {
+            const ctx = document.getElementById('crashTypeSeverityChart')?.getContext('2d');
+            if (!ctx) return;
+            const typeColumn = COLUMN_NAMES.firstCrashType;
+            const severityColumn = COLUMN_NAMES.severity;
+             if (!typeColumn || !severityColumn) { console.error("firstCrashType or severity column name not defined"); return; }
+
+            // Get all unique crash types and severities present in the filtered data
+            const crashTypes = getUniqueValues(filteredData, typeColumn);
+            const severities = getUniqueValues(filteredData, severityColumn);
+
+             // Define consistent colors for severities (reuse from severity pie chart if possible)
+             const severityColors = { // Example, adjust keys/colors
+                'FATAL': 'rgba(211, 47, 47, 0.8)',
+                'INCAPACITATING INJURY': 'rgba(255, 111, 0, 0.8)',
+                'NON INCAPACITATING INJURY': 'rgba(255, 193, 7, 0.8)',
+                'REPORTED, NOT EVIDENT': 'rgba(75, 192, 192, 0.8)',
+                'NO INDICATION OF INJURY': 'rgba(158, 158, 158, 0.7)',
+                'UNKNOWN': 'rgba(200, 200, 200, 0.7)'
+             };
+
+            // Structure data for Chart.js: { datasets: [ { label: 'Severity1', data: [countForType1, countForType2,...] }, ... ] }
+            const datasets = severities.map(sev => {
+                const data = crashTypes.map(type => {
+                    // Count occurrences for this specific type and severity
+                    return filteredData.filter(row => row[typeColumn] === type && row[severityColumn] === sev).length;
+                });
+                const upperSev = sev.toUpperCase(); // Match color keys reliably
+                return {
+                    label: sev,
+                    data: data,
+                    backgroundColor: severityColors[upperSev] || 'rgba(201, 203, 207, 0.7)', // Default grey
+                    // borderColor: '#fff', // Optional: border between stacks
+                    // borderWidth: 1       // Optional: border between stacks
+                };
+            });
+
+            charts['crashTypeSeverity'] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: crashTypes, // Crash types on X-axis
+                    datasets: datasets    // Each severity is a dataset stack
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            stacked: true, // Stack bars on X-axis
+                            title: { display: true, text: 'First Crash Type' }
+                        },
+                        y: {
+                            stacked: true, // Stack bars on Y-axis
+                            title: { display: true, text: 'Number of Accidents' },
+                            beginAtZero: true
+                        }
+                    },
+                     plugins: {
+                        title: { display: false },
+                        legend: { position: 'bottom' } // Legend for severities
+                    }
+                }
+            });
+        }
+
+         function createUnitsVsInjuriesChart() {
+            const ctx = document.getElementById('unitsVsInjuriesChart')?.getContext('2d');
+            if (!ctx) return;
+            const unitsCol = COLUMN_NAMES.numUnits;
+            const injuriesCol = COLUMN_NAMES.casualties;
+            const severityCol = COLUMN_NAMES.severity; // For color coding points
+            if (!unitsCol || !injuriesCol || !severityCol) { console.error("numUnits, casualties, or severity column name not defined"); return; }
+
+            // Prepare data for scatter plot: [{ x: numUnits, y: injuriesTotal, severity: '...' }, ...]
+             const scatterData = filteredData.map(row => ({
+                x: parseInt(row[unitsCol], 10) || 0, // Ensure units is numeric
+               // y: getNumericValue(row, injuriesCol), // Use safe numeric getter
+                y: parseInt(row[injuriesCol], 10) || 0,
+                severity: row[severityCol] || 'UNKNOWN'
+            })).filter(p => p.x > 0); // Optional: filter out 0 unit crashes if nonsensical
+
+
+            // Define colors (reuse if possible)
+            const severityColors = { /* ... copy from createCrashTypeSeverityChart ... */
+                 'FATAL': 'rgba(211, 47, 47, 0.6)', // Slightly transparent for scatter
+                 'INCAPACITATING INJURY': 'rgba(255, 111, 0, 0.6)',
+                 'NON INCAPACITATING INJURY': 'rgba(255, 193, 7, 0.6)',
+                 'REPORTED, NOT EVIDENT': 'rgba(75, 192, 192, 0.6)',
+                 'NO INDICATION OF INJURY': 'rgba(158, 158, 158, 0.5)',
+                 'UNKNOWN': 'rgba(200, 200, 200, 0.5)'
+            };
+
+            charts['unitsVsInjuries'] = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Accidents', // Single dataset
+                        data: scatterData,
+                        pointBackgroundColor: context => { // Color point by severity
+                            const sev = context.raw.severity.toUpperCase();
+                            return severityColors[sev] || 'rgba(201, 203, 207, 0.5)';
+                        },
+                        pointRadius: 4,
+                        pointHoverRadius: 6
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            type: 'linear', // Treat as continuous number
+                            position: 'bottom',
+                            title: { display: true, text: 'Number of Vehicles Involved' },
+                            beginAtZero: true // Start axis at 0
+                        },
+                        y: {
+                            title: { display: true, text: 'Total Injuries Reported' },
+                             beginAtZero: true // Start axis at 0
+                        }
+                    },
+                    plugins: {
+                         title: { display: false },
+                         legend: { display: false }, // Legend not very useful for single scatter dataset
+                         tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const dataPoint = context.raw;
+                                    return `Vehicles: ${dataPoint.x}, Injuries: ${dataPoint.y}, Severity: ${dataPoint.severity}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function createRoadSurfaceChart() {
+             const ctx = document.getElementById('roadSurfaceChart')?.getContext('2d');
+             if (!ctx) return;
+             const columnName = COLUMN_NAMES.roadSurface;
+              if (!columnName) { console.error("roadSurface column name not defined"); return; }
+
+             // Use the generic bar chart function, but make it vertical this time
+             const dataCounts = countOccurrences(filteredData, columnName);
+             const sortedData = Object.entries(dataCounts).sort(([, a], [, b]) => b - a); //.slice(0, 10); // Optional: Limit categories
+
+             const labels = sortedData.map(entry => entry[0]);
+             const counts = sortedData.map(entry => entry[1]);
+
+             charts['roadSurface'] = new Chart(ctx, {
+                 type: 'bar', // Vertical bar
+                 data: {
+                     labels: labels,
+                     datasets: [{
+                         label: 'Accident Count',
+                         data: counts,
+                         backgroundColor: 'rgba(75, 192, 192, 0.7)', // Teal theme
+                         borderColor: 'rgba(75, 192, 192, 1)',
+                         borderWidth: 1
+                     }]
+                 },
+                 options: {
+                     // indexAxis: 'y', // REMOVE this line for vertical bars
+                     responsive: true,
+                     maintainAspectRatio: false,
+                     scales: {
+                         x: { title: { display: true, text: 'Road Surface Condition' } },
+                         y: { title: { display: true, text: 'Number of Accidents' }, beginAtZero: true }
+                     },
+                      plugins: {
+                         title: { display: false },
+                         legend: { display: false }
+                     }
+                 }
+             });
+        }
+
+
+        // --- Utility Functions ---
+        // ... (getNumericValue, countOccurrences, getUniqueValues) ...
+
+        // --- Utility Functions ---
+         function countOccurrences(data, columnName) {
+             const counts = {};
+             data.forEach(row => {
+                // Use the already cleaned value from preprocessing
+                const value = row[columnName]; // Assumes 'UNKNOWN' for null/blanks
+                counts[value] = (counts[value] || 0) + 1;
+             });
+             return counts;
+         }
+
+    </script>
+</body>
+</html>

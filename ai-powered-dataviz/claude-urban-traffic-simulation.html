@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Urban Traffic Simulation</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background-color: #f5f5f5;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      background-color: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      text-align: center;
+      color: #333;
+      margin-top: 0;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 15px;
+      margin-bottom: 20px;
+      padding: 15px;
+      background-color: #f9f9f9;
+      border-radius: 6px;
+    }
+    .control-group {
+      display: flex;
+      flex-direction: column;
+      min-width: 150px;
+    }
+    .control-group label {
+      margin-bottom: 5px;
+      font-weight: bold;
+      color: #555;
+    }
+    select, input {
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    button {
+      padding: 8px 16px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+    button:hover {
+      background-color: #3e8e41;
+    }
+    #simulation {
+      border: 1px solid #ddd;
+      border-radius: 6px;
+      margin-bottom: 20px;
+    }
+    .stats {
+      margin-top: 15px;
+      padding: 15px;
+      background-color: #f9f9f9;
+      border-radius: 6px;
+    }
+    .legend {
+      display: flex;
+      justify-content: center;
+      gap: 20px;
+      margin: 10px 0;
+    }
+    .legend-item {
+      display: flex;
+      align-items: center;
+    }
+    .legend-color {
+      width: 20px;
+      height: 20px;
+      margin-right: 8px;
+      border-radius: 3px;
+    }
+    .tooltip {
+      position: absolute;
+      background-color: rgba(0,0,0,0.8);
+      color: white;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      z-index: 10;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Urban Traffic Simulation</h1>
+    
+    <div class="controls">
+      <div class="control-group">
+        <label for="time-of-day">Time of Day:</label>
+        <select id="time-of-day">
+          <option value="morning-rush">Morning Rush (7-9 AM)</option>
+          <option value="midday">Midday (11 AM-2 PM)</option>
+          <option value="evening-rush" selected>Evening Rush (4-7 PM)</option>
+          <option value="night">Night (10 PM-2 AM)</option>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label for="traffic-volume">Traffic Volume:</label>
+        <input type="range" id="traffic-volume" min="0.5" max="2" step="0.1" value="1">
+        <span id="volume-display">Normal (1x)</span>
+      </div>
+      
+      <div class="control-group">
+        <label for="incident">Traffic Incident:</label>
+        <select id="incident">
+          <option value="none" selected>None</option>
+          <option value="accident">Accident on Main St</option>
+          <option value="construction">Construction on 5th Ave</option>
+          <option value="event">Downtown Event</option>
+        </select>
+      </div>
+      
+      <div class="control-group">
+        <label for="vehicle-count">Vehicle Count:</label>
+        <input type="range" id="vehicle-count" min="50" max="300" step="10" value="150">
+        <span id="count-display">150 vehicles</span>
+      </div>
+      
+      <div class="control-group">
+        <button id="update-btn">Update Simulation</button>
+      </div>
+    </div>
+    
+    <div id="simulation"></div>
+    
+    <div class="legend">
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #4CAF50;"></div>
+        <span>Free Flow (>30 mph)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #FFC107;"></div>
+        <span>Moderate (15-30 mph)</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-color" style="background-color: #F44336;"></div>
+        <span>Congested (<15 mph)</span>
+      </div>
+    </div>
+    
+    <div class="stats">
+      <h3>Traffic Statistics</h3>
+      <p>Average Speed: <span id="avg-speed">28 mph</span></p>
+      <p>Congestion Level: <span id="congestion">Moderate</span></p>
+      <p>Vehicle Count: <span id="vehicle-display">150</span></p>
+      <p>Busiest Road: <span id="busiest-road">Main Street</span></p>
+    </div>
+  </div>
+
+  <div class="tooltip"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+  <script>
+    // Initialize the simulation
+    (function() {
+      // DOM elements
+      const simulation = d3.select('#simulation');
+      const volumeSlider = document.getElementById('traffic-volume');
+      const volumeDisplay = document.getElementById('volume-display');
+      const vehicleCountSlider = document.getElementById('vehicle-count');
+      const countDisplay = document.getElementById('count-display');
+      const updateButton = document.getElementById('update-btn');
+      const tooltip = d3.select('.tooltip');
+      
+      // Set up the SVG
+      const width = 1000;
+      const height = 500;
+      const svg = simulation.append('svg')
+        .attr('width', width)
+        .attr('height', height)
+        .attr('viewBox', [0, 0, width, height])
+        .style('max-width', '100%');
+        
+      // Set up the city grid
+      const gridGroup = svg.append('g').attr('class', 'grid');
+      const vehicleGroup = svg.append('g').attr('class', 'vehicles');
+      
+      // Create city grid
+      const roads = [];
+      const intersections = [];
+      
+      // Define roads: horizontal roads
+      for (let i = 1; i <= 5; i++) {
+        const y = i * height / 6;
+        roads.push({
+          id: `h-road-${i}`,
+          name: i === 3 ? 'Main Street' : `${['First', 'Second', 'Third', 'Fourth', 'Fifth'][i-1]} Avenue`,
+          type: i === 3 ? 'major' : 'minor',
+          x1: 0,
+          y1: y,
+          x2: width,
+          y2: y,
+          isHorizontal: true
+        });
+      }
+      
+      // Vertical roads
+      for (let i = 1; i <= 5; i++) {
+        const x = i * width / 6;
+        roads.push({
+          id: `v-road-${i}`,
+          name: i === 3 ? 'Central Avenue' : `${['1st', '2nd', '3rd', '4th', '5th'][i-1]} Street`,
+          type: i === 3 ? 'major' : 'minor',
+          x1: x,
+          y1: 0,
+          x2: x,
+          y2: height,
+          isHorizontal: false
+        });
+      }
+      
+      // Calculate intersections
+      roads.forEach((road1, i) => {
+        roads.slice(i + 1).forEach(road2 => {
+          if (road1.isHorizontal !== road2.isHorizontal) {
+            const horizontal = road1.isHorizontal ? road1 : road2;
+            const vertical = road1.isHorizontal ? road2 : road1;
+            
+            intersections.push({
+              id: `${road1.id}-${road2.id}`,
+              x: vertical.x1,
+              y: horizontal.y1,
+              roads: [road1.id, road2.id]
+            });
+          }
+        });
+      });
+      
+      // Traffic lights for intersections
+      const trafficLights = intersections.map(intersection => {
+        return {
+          id: `light-${intersection.id}`,
+          x: intersection.x,
+          y: intersection.y,
+          state: Math.random() < 0.5 ? 'horizontal' : 'vertical',
+          timer: Math.floor(Math.random() * 100)
+        };
+      });
+      
+      // Initial vehicles
+      let vehicles = [];
+      
+      function generateVehicles(count) {
+        vehicles = [];
+        
+        for (let i = 0; i < count; i++) {
+          // Select a random road
+          const road = roads[Math.floor(Math.random() * roads.length)];
+          
+          // Determine direction
+          let direction;
+          if (road.isHorizontal) {
+            direction = Math.random() < 0.5 ? 'right' : 'left';
+          } else {
+            direction = Math.random() < 0.5 ? 'down' : 'up';
+          }
+          
+          // Set position
+          let x, y;
+          if (road.isHorizontal) {
+            x = direction === 'right' ? road.x1 : road.x2;
+            y = road.y1;
+            if (direction === 'right') {
+              y -= 4; // Offset for right-bound traffic
+            } else {
+              y += 4; // Offset for left-bound traffic
+            }
+          } else {
+            x = road.x1;
+            y = direction === 'down' ? road.y1 : road.y2;
+            if (direction === 'down') {
+              x += 4; // Offset for downward traffic
+            } else {
+              x -= 4; // Offset for upward traffic
+            }
+          }
+          
+          // Calculate speed based on time of day and road type
+          let baseSpeed = road.type === 'major' ? 3 : 2;
+          const timeOfDay = document.getElementById('time-of-day').value;
+          const trafficVolume = parseFloat(document.getElementById('traffic-volume').value);
+          
+          // Adjust speed by time of day
+          if (timeOfDay === 'morning-rush' || timeOfDay === 'evening-rush') {
+            baseSpeed *= 0.7;
+          } else if (timeOfDay === 'night') {
+            baseSpeed *= 1.5;
+          }
+          
+          // Adjust by traffic volume
+          baseSpeed /= trafficVolume;
+          
+          // Add some randomness
+          const speed = baseSpeed * (0.8 + Math.random() * 0.4);
+          
+          // Determine color based on speed
+          let color;
+          if (speed > 2.5) color = '#4CAF50'; // Free flow
+          else if (speed > 1.5) color = '#FFC107'; // Moderate
+          else color = '#F44336'; // Congested
+          
+          vehicles.push({
+            id: `vehicle-${i}`,
+            x: x,
+            y: y,
+            road: road.id,
+            roadName: road.name,
+            direction: direction,
+            speed: speed,
+            speedMph: Math.round(speed * 10), // Convert to "mph" for display
+            color: color,
+            width: 8,
+            height: 4
+          });
+        }
+        
+        return vehicles;
+      }
+      
+      // Draw the city grid
+      function drawGrid() {
+        // Draw roads
+        gridGroup.selectAll('.road')
+          .data(roads)
+          .enter()
+          .append('line')
+          .attr('class', 'road')
+          .attr('x1', d => d.x1)
+          .attr('y1', d => d.y1)
+          .attr('x2', d => d.x2)
+          .attr('y2', d => d.y2)
+          .attr('stroke', d => d.type === 'major' ? '#444' : '#777')
+          .attr('stroke-width', d => d.type === 'major' ? 10 : 6);
+        
+        // Draw road names
+        gridGroup.selectAll('.road-name')
+          .data(roads)
+          .enter()
+          .append('text')
+          .attr('class', 'road-name')
+          .attr('x', d => d.isHorizontal ? width - 10 : d.x1)
+          .attr('y', d => d.isHorizontal ? d.y1 - 10 : 20)
+          .attr('text-anchor', d => d.isHorizontal ? 'end' : 'middle')
+          .attr('fill', '#555')
+          .attr('font-size', '10px')
+          .text(d => d.name);
+        
+        // Draw intersections
+        gridGroup.selectAll('.intersection')
+          .data(intersections)
+          .enter()
+          .append('rect')
+          .attr('class', 'intersection')
+          .attr('x', d => d.x - 5)
+          .attr('y', d => d.y - 5)
+          .attr('width', 10)
+          .attr('height', 10)
+          .attr('fill', '#333');
+      }
+      
+      // Draw and update vehicles
+      function updateVehicles() {
+        // Update existing vehicles
+        const vehicleElements = vehicleGroup.selectAll('.vehicle')
+          .data(vehicles, d => d.id);
+        
+        // Remove old vehicles
+        vehicleElements.exit().remove();
+        
+        // Add new vehicles
+        const newVehicles = vehicleElements.enter()
+          .append('g')
+          .attr('class', 'vehicle')
+          .attr('transform', d => `translate(${d.x}, ${d.y})`);
+        
+        newVehicles.append('rect')
+          .attr('width', d => d.width)
+          .attr('height', d => d.height)
+          .attr('x', d => -d.width / 2)
+          .attr('y', d => -d.height / 2)
+          .attr('fill', d => d.color)
+          .attr('stroke', '#333')
+          .attr('stroke-width', 0.5);
+        
+        // Handle rotation based on direction
+        vehicleElements.merge(newVehicles)
+          .attr('transform', d => {
+            let rotation = 0;
+            if (d.direction === 'up') rotation = -90;
+            else if (d.direction === 'down') rotation = 90;
+            else if (d.direction === 'left') rotation = 180;
+            
+            return `translate(${d.x}, ${d.y}) rotate(${rotation})`;
+          })
+          .on('mouseover', function(event, d) {
+            tooltip.style('opacity', 1)
+              .html(`
+                <strong>${d.roadName}</strong><br>
+                Speed: ${d.speedMph} mph<br>
+                Direction: ${d.direction}
+              `)
+              .style('left', (event.pageX + 10) + 'px')
+              .style('top', (event.pageY - 28) + 'px');
+          })
+          .on('mouseout', function() {
+            tooltip.style('opacity', 0);
+          });
+      }
+      
+      // Update traffic lights
+      function updateTrafficLights() {
+        trafficLights.forEach(light => {
+          light.timer++;
+          
+          // Change light every 100 ticks (adjust as needed)
+          if (light.timer >= 100) {
+            light.state = light.state === 'horizontal' ? 'vertical' : 'horizontal';
+            light.timer = 0;
+          }
+        });
+      }
+      
+      // Move vehicles
+      function moveVehicles() {
+        vehicles.forEach(vehicle => {
+          // Find intersection the vehicle might be approaching
+          const nearbyIntersection = intersections.find(intersection => {
+            const dx = Math.abs(vehicle.x - intersection.x);
+            const dy = Math.abs(vehicle.y - intersection.y);
+            return dx < 15 && dy < 15;
+          });
+          
+          // Check if vehicle should stop at intersection
+          let shouldStop = false;
+          if (nearbyIntersection) {
+            const trafficLight = trafficLights.find(light => 
+              light.x === nearbyIntersection.x && light.y === nearbyIntersection.y);
+            
+            if (trafficLight) {
+              const isOnHorizontalRoad = vehicle.direction === 'left' || vehicle.direction === 'right';
+              shouldStop = (isOnHorizontalRoad && trafficLight.state === 'vertical') || 
+                          (!isOnHorizontalRoad && trafficLight.state === 'horizontal');
+              
+              // If very close to intersection and should stop
+              const distToIntersection = Math.sqrt(
+                Math.pow(vehicle.x - nearbyIntersection.x, 2) + 
+                Math.pow(vehicle.y - nearbyIntersection.y, 2)
+              );
+              
+              if (distToIntersection < 10 && shouldStop) {
+                // Don't move
+                return;
+              }
+            }
+          }
+          
+          // Move vehicle
+          switch (vehicle.direction) {
+            case 'right':
+              vehicle.x += vehicle.speed;
+              if (vehicle.x > width) {
+                vehicle.x = 0;
+              }
+              break;
+            case 'left':
+              vehicle.x -= vehicle.speed;
+              if (vehicle.x < 0) {
+                vehicle.x = width;
+              }
+              break;
+            case 'down':
+              vehicle.y += vehicle.speed;
+              if (vehicle.y > height) {
+                vehicle.y = 0;
+              }
+              break;
+            case 'up':
+              vehicle.y -= vehicle.speed;
+              if (vehicle.y < 0) {
+                vehicle.y = height;
+              }
+              break;
+          }
+          
+          // Collision avoidance
+          const ahead = vehicles.filter(v => {
+            if (v.id === vehicle.id) return false;
+            
+            // Check if on same road and direction
+            if (v.road !== vehicle.road || v.direction !== vehicle.direction) return false;
+            
+            const distance = Math.sqrt(
+              Math.pow(vehicle.x - v.x, 2) + Math.pow(vehicle.y - v.y, 2)
+            );
+            
+            // Check if close and ahead of current vehicle
+            if (distance < 15) {
+              if (vehicle.direction === 'right' && v.x > vehicle.x) return true;
+              if (vehicle.direction === 'left' && v.x < vehicle.x) return true;
+              if (vehicle.direction === 'down' && v.y > vehicle.y) return true;
+              if (vehicle.direction === 'up' && v.y < vehicle.y) return true;
+            }
+            
+            return false;
+          });
+          
+          if (ahead.length > 0) {
+            vehicle.speed = Math.min(vehicle.speed, ahead[0].speed * 0.9);
+          }
+        });
+      }
+      
+      // Update statistics
+      function updateStats() {
+        // Calculate average speed
+        const avgSpeed = vehicles.reduce((sum, v) => sum + v.speedMph, 0) / vehicles.length;
+        document.getElementById('avg-speed').textContent = Math.round(avgSpeed) + ' mph';
+        
+        // Determine congestion level
+        let congestion;
+        if (avgSpeed > 25) congestion = 'Low';
+        else if (avgSpeed > 15) congestion = 'Moderate';
+        else congestion = 'High';
+        document.getElementById('congestion').textContent = congestion;
+        
+        // Count vehicles per road
+        const roadCounts = {};
+        vehicles.forEach(v => {
+          const road = roads.find(r => r.id === v.road);
+          if (road) {
+            if (!roadCounts[road.name]) roadCounts[road.name] = 0;
+            roadCounts[road.name]++;
+          }
+        });
+        
+        // Find busiest road
+        let busiest = { name: '', count: 0 };
+        for (const [name, count] of Object.entries(roadCounts)) {
+          if (count > busiest.count) {
+            busiest = { name, count };
+          }
+        }
+        document.getElementById('busiest-road').textContent = busiest.name;
+        document.getElementById('vehicle-display').textContent = vehicles.length;
+      }
+      
+      // Animation loop
+      function animate() {
+        moveVehicles();
+        updateTrafficLights();
+        updateVehicles();
+        updateStats();
+        requestAnimationFrame(animate);
+      }
+      
+      // Apply incident effects
+      function applyIncidentEffects() {
+        const incident = document.getElementById('incident').value;
+        
+        vehicles.forEach(vehicle => {
+          const road = roads.find(r => r.id === vehicle.road);
+          
+          // Reset any previous incident effects
+          vehicle.speed = vehicle.speed * 1.5;
+          
+          // Apply new incident effects
+          if (incident === 'accident' && road.name === 'Main Street') {
+            vehicle.speed *= 0.4;
+          } else if (incident === 'construction' && road.name === '5th Street') {
+            vehicle.speed *= 0.6;
+          } else if (incident === 'event' && 
+                    (road.name === 'Central Avenue' || road.name === 'Main Street')) {
+            vehicle.speed *= 0.5;
+          }
+          
+          // Update color based on new speed
+          if (vehicle.speed > 2.5) vehicle.color = '#4CAF50';
+          else if (vehicle.speed > 1.5) vehicle.color = '#FFC107';
+          else vehicle.color = '#F44336';
+          
+          // Update displayed speed
+          vehicle.speedMph = Math.round(vehicle.speed * 10);
+        });
+      }
+      
+      // Update handlers
+      volumeSlider.addEventListener('input', function() {
+        const value = parseFloat(this.value);
+        let displayText = '';
+        
+        if (value < 0.7) displayText = 'Light (' + value.toFixed(1) + 'x)';
+        else if (value < 1.3) displayText = 'Normal (' + value.toFixed(1) + 'x)';
+        else displayText = 'Heavy (' + value.toFixed(1) + 'x)';
+        
+        volumeDisplay.textContent = displayText;
+      });
+      
+      vehicleCountSlider.addEventListener('input', function() {
+        countDisplay.textContent = this.value + ' vehicles';
+      });
+      
+      updateButton.addEventListener('click', function() {
+        const count = parseInt(vehicleCountSlider.value);
+        vehicles = generateVehicles(count);
+        applyIncidentEffects();
+      });
+      
+      // Initialization
+      function init() {
+        drawGrid();
+        vehicles = generateVehicles(150);
+        updateVehicles();
+        animate();
+      }
+      
+      init();
+    })();
+  </script>
+</body>
+</html>
